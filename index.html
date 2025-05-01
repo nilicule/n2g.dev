@@ -499,9 +499,9 @@
     // Initialize carousel
     function initCarousel() {
         // Create project cards
-        // Create project cards
         projects.forEach((project, index) => {
             const card = document.createElement('div');
+            card.id = `project-${index}`;
             card.className = `project-card ${index === 0 ? 'active' : ''}`;
             card.innerHTML = `
         <div class="project-icon">${project.icon}</div>
@@ -519,10 +519,14 @@
     `;
             projectCarousel.appendChild(card);
 
-            // Create navigation dot (unchanged)
+            // Create navigation dot with link to project
             const dot = document.createElement('div');
             dot.className = `carousel-dot ${index === 0 ? 'active' : ''}`;
-            dot.addEventListener('click', () => goToSlide(index));
+            dot.addEventListener('click', () => {
+                goToSlide(index);
+                // Update URL hash without triggering page reload
+                history.pushState(null, null, `#project-${index}`);
+            });
             carouselDots.appendChild(dot);
         });
     }
@@ -543,6 +547,16 @@
         currentIndex = index;
     }
 
+    // Reset direct link flag and enable auto-rotation
+    function resetDirectLinkFlag() {
+        directLinkUsed = false;
+        stopAutoRotate(); // Clear any existing interval
+        startAutoRotate(); // Use the startAutoRotate function to ensure proper setup
+        document.querySelector('.reset-auto-rotation').style.display = 'none';
+        // Clear the URL hash to prevent jumping back to the linked project
+        history.pushState(null, null, window.location.pathname + window.location.search);
+    }
+
     // Previous slide
     function prevSlide() {
         const newIndex = currentIndex === 0 ? projects.length - 1 : currentIndex - 1;
@@ -556,36 +570,121 @@
     }
 
     // Auto rotate carousel
-    let carouselInterval;
+    let carouselTimeoutId = null;
+    let carouselIntervalId = null;
 
     function startAutoRotate() {
-        carouselInterval = setInterval(nextSlide, 5000);
+        // Clear any existing timeout and interval first
+        stopAutoRotate();
+        // Use setTimeout for the first transition to ensure consistent timing
+        carouselTimeoutId = setTimeout(() => {
+            nextSlide();
+            // Then set up the regular interval for subsequent transitions
+            carouselIntervalId = setInterval(nextSlide, 5000);
+        }, 5000);
     }
 
     function stopAutoRotate() {
-        clearInterval(carouselInterval);
+        // Clear both timeout and interval to ensure all auto-rotation is stopped
+        if (carouselTimeoutId) {
+            clearTimeout(carouselTimeoutId);
+            carouselTimeoutId = null;
+        }
+        if (carouselIntervalId) {
+            clearInterval(carouselIntervalId);
+            carouselIntervalId = null;
+        }
     }
 
     // Event listeners
     prevButton.addEventListener('click', () => {
         prevSlide();
         stopAutoRotate();
-        startAutoRotate();
+        // Update URL hash without triggering page reload
+        history.pushState(null, null, `#project-${currentIndex}`);
+        // Only restart auto-rotation if no direct link was used
+        if (!directLinkUsed) {
+            startAutoRotate();
+        }
     });
 
     nextButton.addEventListener('click', () => {
         nextSlide();
         stopAutoRotate();
-        startAutoRotate();
+        // Update URL hash without triggering page reload
+        history.pushState(null, null, `#project-${currentIndex}`);
+        // Only restart auto-rotation if no direct link was used
+        if (!directLinkUsed) {
+            startAutoRotate();
+        }
     });
 
-    // Initialize carousel and start auto rotation
+    // Check for direct link to a project
+    let directLinkUsed = false;
+
+    function checkForDirectLink() {
+        const hash = window.location.hash;
+        if (hash && hash.startsWith('#project-')) {
+            const projectIndex = parseInt(hash.replace('#project-', ''));
+            if (!isNaN(projectIndex) && projectIndex >= 0 && projectIndex < projects.length) {
+                goToSlide(projectIndex);
+                directLinkUsed = true;
+                // Show the reset button when direct link is used
+                if (document.querySelector('.reset-auto-rotation')) {
+                    document.querySelector('.reset-auto-rotation').style.display = 'block';
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Initialize carousel
     initCarousel();
-    startAutoRotate();
+
+    // Check for direct link and only start auto-rotation if no direct link was used
+    if (!checkForDirectLink()) {
+        startAutoRotate();
+    }
 
     // Stop rotation when hovering over carousel
     document.querySelector('.carousel-container').addEventListener('mouseenter', stopAutoRotate);
-    document.querySelector('.carousel-container').addEventListener('mouseleave', startAutoRotate);
+    document.querySelector('.carousel-container').addEventListener('mouseleave', () => {
+        // Only restart auto-rotation if no direct link was used
+        if (!directLinkUsed) {
+            startAutoRotate();
+        }
+    });
+
+    // Add a double-click event to the carousel container to reset direct link flag
+    document.querySelector('.carousel-container').addEventListener('dblclick', resetDirectLinkFlag);
+
+    // Handle hash changes
+    window.addEventListener('hashchange', checkForDirectLink);
+
+    // Add a button to reset auto-rotation
+    const resetButton = document.createElement('button');
+    resetButton.textContent = 'Enable Auto-Rotation';
+    resetButton.style.display = 'none';
+    resetButton.className = 'reset-auto-rotation';
+    resetButton.style.position = 'absolute';
+    resetButton.style.bottom = '-40px';
+    resetButton.style.left = '50%';
+    resetButton.style.transform = 'translateX(-50%)';
+    resetButton.style.padding = '8px 16px';
+    resetButton.style.borderRadius = '4px';
+    resetButton.style.backgroundColor = 'rgba(30, 41, 59, 0.7)';
+    resetButton.style.color = '#e2e8f0';
+    resetButton.style.border = '1px solid rgba(51, 65, 85, 0.6)';
+    resetButton.style.cursor = 'pointer';
+    resetButton.addEventListener('click', resetDirectLinkFlag);
+
+    // Show the reset button only when direct link is used
+    if (directLinkUsed) {
+        resetButton.style.display = 'block';
+    }
+
+    document.querySelector('.carousel-container').appendChild(resetButton);
 </script>
 </body>
 </html>
